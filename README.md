@@ -18,17 +18,6 @@
 - **Audit régulier des dépendances** pour sécurité maximale  
 
 ---
-
-## Structure du projet
-
-devosphere-core/
-│── src/
-│ ├── config/
-│ │ └── db.js # Configuration de la base de données
-│ ├── models/
-│ │ └── user.js # Modèle utilisateur
-│ ├── services/
-│ │ └── authService.js # Logique d'authentification
 │ ├── middlewares/
 │ │ └── authMiddleware.js # Protection des routes
 │ └── index.js # Point d'entrée
