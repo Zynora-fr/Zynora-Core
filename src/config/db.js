@@ -1,7 +1,7 @@
 // Configuration de la base de données
 module.exports = {
-    host: 'localhost',
-    user: 'root',
+    host: '',
+    user: '',
     password: '',
-    database: 'devosphere'
+    database: ''
 };
