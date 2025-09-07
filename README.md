@@ -18,9 +18,3 @@
 - **Audit régulier des dépendances** pour sécurité maximale  
 
 ---
-│ ├── middlewares/
-│ │ └── authMiddleware.js # Protection des routes
-│ └── index.js # Point d'entrée
-│── package.json
-│── .env.example
-│── README.md
