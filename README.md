@@ -1,2 +1,37 @@
 # Devosphere-Core
-Devosphere-Core : base sécurisée pour API et auth, gestion utilisateurs/roles, prête à être réutilisée dans tous les projets Devosphere.
+
+**Devosphere-Core** est le **noyau central sécurisé** pour tous les projets Devosphere. Il fournit une base solide pour la création d’API sécurisées, la gestion des utilisateurs et rôles, ainsi que l’intégration facile dans d’autres projets.
+
+> ⚠️ Open-source pour usage personnel, éducatif ou interne uniquement. **L’utilisation commerciale est interdite sans accord préalable avec Devosphere.**
+
+---
+
+## Fonctionnalités principales
+
+- **Authentification sécurisée** avec JWT et refresh tokens  
+- **Gestion des utilisateurs et rôles** (admin, user, etc.)  
+- **Protection des routes et API**  
+- **Hashing sécurisé** des mots de passe avec bcrypt  
+- **Rate limiting** et protection contre les attaques par force brute  
+- **Configuration centralisée** via `.env`  
+- **Prêt pour PostgreSQL** avec Sequelize  
+- **Audit régulier des dépendances** pour sécurité maximale  
+
+---
+
+## Structure du projet
+
+devosphere-core/
+│── src/
+│ ├── config/
+│ │ └── db.js # Configuration de la base de données
+│ ├── models/
+│ │ └── user.js # Modèle utilisateur
+│ ├── services/
+│ │ └── authService.js # Logique d'authentification
+│ ├── middlewares/
+│ │ └── authMiddleware.js # Protection des routes
+│ └── index.js # Point d'entrée
+│── package.json
+│── .env.example
+│── README.md
