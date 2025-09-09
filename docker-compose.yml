@@ -15,6 +15,18 @@ services:
     depends_on:
       - mongo
       - postgres
+  mongo-express:
+    image: mongo-express:1
+    restart: always
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    depends_on:
+      - mongo
+    ports:
+      - "8081:8081"
   mongo:
     image: mongo:6
     restart: always
@@ -32,6 +44,13 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+  adminer:
+    image: adminer:latest
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
 volumes:
   mongo_data:
   pg_data:

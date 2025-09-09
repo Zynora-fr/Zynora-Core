@@ -5,6 +5,7 @@ const { authenticateToken, authorizeRoles } = require('../middleware/authMiddlew
 const adminMiddleware = require('../middleware/adminMiddleware');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
+const { authorizePermissions } = require('../middleware/permissionsMiddleware');
 
 
 // GET /users → Liste tous les utilisateurs (admin only)
@@ -34,6 +35,7 @@ router.put('/:id',
     authorizeRoles('admin', 'manager'),
     body('email').optional().isEmail().withMessage('Email invalide'),
     body('password').optional().isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 }).withMessage('Mot de passe trop faible'),
+    body('permissions').optional().isArray().withMessage('Permissions doit être un tableau de chaînes'),
     async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ message: 'Validation error', code: 'VALIDATION_ERROR', errors: errors.array() });

@@ -6,7 +6,7 @@ const refreshRepo = require('../repositories/refreshTokenRepository');
 require('dotenv').config();
 
 class AuthService {
-    static async register({ name, email, password, role }) {
+    static async register({ name, firstName, lastName, username, phone, email, password, role }) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email invalide');
 
         if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password)) {
@@ -15,9 +15,10 @@ class AuthService {
 
         const exists = await userRepo.findByEmail(email);
         if (exists) throw new Error('Email déjà utilisé');
+        // username unique côté Mongo/PG via unique index/contrainte
 
         const hashedPassword = await bcrypt.hash(password, 12);
-        const user = await userRepo.create({ name, email, password: hashedPassword, role: role || 'user' });
+        const user = await userRepo.create({ name, firstName, lastName, username, phone, email, password: hashedPassword, role: role || 'user' });
         const userObj = { ...user };
         delete userObj.password;
         return userObj;

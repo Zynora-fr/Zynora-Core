@@ -13,11 +13,16 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const errorHandler = require('./src/middleware/errorMiddleware');
+const User = require('./src/models/User');
+const RefreshToken = require('./src/models/RefreshToken');
+const { connectPG } = require('./src/config/pg');
+const { authorizePermissions } = require('./src/middleware/permissionsMiddleware');
+const permRepo = require('./src/repositories/permissionRepository');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(helmet());
 app.use(morgan('combined'));
 app.use(cors({
@@ -39,6 +44,23 @@ const authLimiter = rateLimit({
     legacyHeaders: false
 });
 
+// Rate limit global
+const generalLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 300,
+});
+app.use(generalLimiter);
+
+// Blocage basique de bots connus via User-Agent
+app.use((req, res, next) => {
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const deny = ['bot', 'crawler', 'spider', 'curl/', 'wget/', 'postmanruntime'];
+    if (ua && deny.some(sig => ua.includes(sig))) {
+        return res.status(403).json({ message: 'Accès interdit', code: 'BOT_BLOCKED' });
+    }
+    next();
+});
+
 // Connexion DB
 connectDB().catch((err) => {
     console.error('Erreur connexion MongoDB:', err.message);
@@ -58,6 +80,11 @@ app.get('/', (req, res) => {
     res.send('Devosphere-Core API fonctionne !');
 });
 
+// robots.txt pour désindexer l'API
+app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send('User-agent: *\nDisallow: /');
+});
+
 // Base path API
 const apiBase = '/api/v1';
 
@@ -65,7 +92,11 @@ const apiBase = '/api/v1';
 app.post(
     `${apiBase}/auth/register`,
     authLimiter,
-    body('name').isString().trim().notEmpty().withMessage('Nom requis'),
+    body('name').isString().trim().notEmpty().withMessage('Nom affiché requis'),
+    body('firstName').isString().trim().notEmpty().withMessage('Prénom requis'),
+    body('lastName').isString().trim().notEmpty().withMessage('Nom requis'),
+    body('username').isString().trim().isLength({ min: 3, max: 32 }).withMessage('Pseudo requis (3-32)'),
+    body('phone').optional().isString().isLength({ min: 6, max: 32 }).withMessage('Téléphone invalide'),
     body('email').isEmail().withMessage('Email invalide').normalizeEmail(),
     body('password')
         .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
@@ -75,8 +106,8 @@ app.post(
         const errors = validationResult(req);
         if (!errors.isEmpty()) return res.status(400).json({ message: 'Validation error', code: 'VALIDATION_ERROR', errors: errors.array() });
         try {
-            const { name, email, password, role } = req.body;
-            const user = await AuthService.register({ name, email, password, role });
+            const { name, firstName, lastName, username, phone, email, password, role } = req.body;
+            const user = await AuthService.register({ name, firstName, lastName, username, phone, email, password, role });
             res.status(201).json({ message: 'Inscription réussie', code: 'AUTH_REGISTER_OK', user });
         } catch (err) {
             res.status(400).json({ message: err.message, code: 'AUTH_REGISTER_ERROR' });
@@ -99,6 +130,43 @@ app.post(
         } catch (err) {
             res.status(400).json({ message: err.message, code: 'AUTH_LOGIN_ERROR' });
         }
+    }
+);
+
+// Dashboard (stats simples) — admin/manager
+app.get(
+    `${apiBase}/dashboard`,
+    authenticateToken,
+    authorizeRoles('admin', 'manager'),
+    async (req, res) => {
+        try {
+            const driver = (process.env.DB_DRIVER || 'mongo').toLowerCase();
+            let userCount = 0;
+            let tokenCount = 0;
+            if (driver === 'postgres') {
+                const pool = await connectPG();
+                const uc = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+                const tc = await pool.query('SELECT COUNT(*)::int AS count FROM refresh_tokens WHERE revoked_at IS NULL');
+                userCount = uc.rows[0]?.count || 0;
+                tokenCount = tc.rows[0]?.count || 0;
+            } else {
+                userCount = await User.countDocuments();
+                tokenCount = await RefreshToken.countDocuments({ revokedAt: { $exists: false } });
+            }
+            res.json({ message: 'Dashboard OK', code: 'DASHBOARD_OK', data: { userCount, activeRefreshTokens: tokenCount } });
+        } catch (err) {
+            res.status(500).json({ message: 'Erreur serveur', code: 'SERVER_ERROR' });
+        }
+    }
+);
+
+// Exemple de route protégée par permission spécifique
+app.get(
+    `${apiBase}/reports/daily`,
+    authenticateToken,
+    authorizePermissions('reports.read'),
+    (req, res) => {
+        res.json({ code: 'REPORT_DAILY_OK', data: { date: new Date().toISOString().slice(0,10) } });
     }
 );
 
@@ -146,6 +214,76 @@ app.post(
 
 // Routes utilisateurs (admin only pour listing/modif/suppression)
 app.use(`${apiBase}/users`, usersRouter);
+
+// Endpoints admin pour permissions
+app.get(`${apiBase}/admin/users/:id/permissions`, authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const driver = (process.env.DB_DRIVER || 'mongo').toLowerCase();
+        let user;
+        if (driver === 'postgres') {
+            const pool = await connectPG();
+            const r = await pool.query('SELECT id, name, first_name, last_name, username, phone, email, role, permissions FROM users WHERE id=$1', [req.params.id]);
+            user = r.rows[0];
+        } else {
+            user = await User.findById(req.params.id).select('name firstName lastName username phone email role permissions');
+        }
+        if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé', code: 'USER_NOT_FOUND' });
+        res.json({ code: 'USER_PERMS_OK', permissions: user.permissions || [] });
+    } catch (e) {
+        res.status(500).json({ message: 'Erreur serveur', code: 'SERVER_ERROR' });
+    }
+});
+
+// Catalogue de permissions (admin)
+app.get(`${apiBase}/admin/permissions`, authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const items = await permRepo.list();
+        res.json({ code: 'PERMS_CATALOG_OK', data: items });
+    } catch (e) {
+        res.status(500).json({ message: 'Erreur serveur', code: 'SERVER_ERROR' });
+    }
+});
+
+app.post(`${apiBase}/admin/permissions`, authenticateToken, authorizeRoles('admin'), body('key').isString().trim().notEmpty(), body('label').isString().trim().notEmpty(), async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: 'Validation error', code: 'VALIDATION_ERROR', errors: errors.array() });
+    try {
+        const { key, label, description } = req.body;
+        const created = await permRepo.create({ key, label, description });
+        res.status(201).json({ code: 'PERM_CREATED', data: created });
+    } catch (e) {
+        res.status(400).json({ message: e.message, code: 'PERM_CREATE_ERROR' });
+    }
+});
+
+app.delete(`${apiBase}/admin/permissions/:key`, authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const ok = await permRepo.removeByKey(req.params.key);
+        res.json({ code: 'PERM_DELETED', deleted: ok });
+    } catch (e) {
+        res.status(500).json({ message: 'Erreur serveur', code: 'SERVER_ERROR' });
+    }
+});
+
+app.put(`${apiBase}/admin/users/:id/permissions`, authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const perms = Array.isArray(req.body.permissions) ? req.body.permissions : null;
+        if (!perms) return res.status(400).json({ message: 'permissions doit être un tableau', code: 'VALIDATION_ERROR' });
+        const driver = (process.env.DB_DRIVER || 'mongo').toLowerCase();
+        let updated;
+        if (driver === 'postgres') {
+            const pool = await connectPG();
+            const r = await pool.query('UPDATE users SET permissions=$1, updated_at=NOW() WHERE id=$2 RETURNING id, permissions', [perms, req.params.id]);
+            updated = r.rows[0];
+        } else {
+            updated = await User.findByIdAndUpdate(req.params.id, { permissions: perms }, { new: true }).select('id permissions');
+        }
+        if (!updated) return res.status(404).json({ message: 'Utilisateur non trouvé', code: 'USER_NOT_FOUND' });
+        res.json({ code: 'USER_PERMS_UPDATED', permissions: updated.permissions || perms });
+    } catch (e) {
+        res.status(500).json({ message: 'Erreur serveur', code: 'SERVER_ERROR' });
+    }
+});
 
 // Catch-all: bloquer l'accès aux routes hors /api/* et /test (et garder /)
 app.use((req, res, next) => {

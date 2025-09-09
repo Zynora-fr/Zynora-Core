@@ -32,10 +32,18 @@
   <div class="row">
     <div class="card">
       <h3>Inscription</h3>
-      <label>Nom</label>
+      <label>Nom affiché</label>
       <input id="regName" value="Test" />
+      <label>Prénom</label>
+      <input id="regFirst" value="Jean" />
+      <label>Nom</label>
+      <input id="regLast" value="Dupont" />
+      <label>Pseudo</label>
+      <input id="regUser" value="jdupont" />
       <label>Email</label>
       <input id="regEmail" value="user@test.com" />
+      <label>Téléphone (optionnel)</label>
+      <input id="regPhone" placeholder="ex: +33601020304" />
       <label>Mot de passe</label>
       <input id="regPwd" value="Aa!23456" />
       <label>Rôle (optionnel)</label>
@@ -64,6 +72,19 @@
 
   <div class="row">
     <div class="card">
+      <h3>Menu (dépliable selon permissions)</h3>
+      <div>
+        <button id="btnToggleMenu">Afficher / Masquer</button>
+        <ul id="menu" style="display:none;">
+          <li data-perm="reports.read">Rapports quotidiens</li>
+          <li data-perm="users.read">Gestion des utilisateurs</li>
+          <li data-perm="admin.panel">Panneau admin</li>
+        </ul>
+      </div>
+      <pre id="outMenu"></pre>
+    </div>
+
+    <div class="card">
       <h3>Profil</h3>
       <button id="btnProfile">GET /profile</button>
       <pre id="outProfile"></pre>
@@ -79,6 +100,33 @@
       <h3>Utilisateurs</h3>
       <button id="btnUsers">GET /users</button>
       <pre id="outUsers"></pre>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Permissions (admin)</h3>
+      <label>User ID</label>
+      <input id="permsUserId" placeholder="ID utilisateur" />
+      <label>Permissions (séparées par des virgules)</label>
+      <input id="permsList" placeholder="ex: users.read,users.write,reports.read" />
+      <button id="btnGetPerms">GET /admin/users/:id/permissions</button>
+      <button id="btnSetPerms">PUT /admin/users/:id/permissions</button>
+      <pre id="outPerms"></pre>
+    </div>
+
+    <div class="card">
+      <h3>Catalogue de permissions (admin)</h3>
+      <button id="btnListCatalog">GET /admin/permissions</button>
+      <label>Key</label>
+      <input id="permKey" placeholder="ex: posts.create" />
+      <label>Label</label>
+      <input id="permLabel" placeholder="Créer des articles" />
+      <label>Description (optionnel)</label>
+      <input id="permDesc" placeholder="Permission pour créer des articles" />
+      <button id="btnAddCatalog">POST /admin/permissions</button>
+      <button id="btnDelCatalog">DELETE /admin/permissions/:key</button>
+      <pre id="outCatalog"></pre>
     </div>
   </div>
 

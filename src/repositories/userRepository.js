@@ -5,8 +5,8 @@ const { connectPG } = require('../config/pg');
 const driver = (process.env.DB_DRIVER || 'mongo').toLowerCase();
 
 const mongoRepo = {
-    async create({ name, email, password, role }) {
-        const user = await User.create({ name, email, password, role });
+    async create({ name, firstName, lastName, username, phone, email, password, role, permissions }) {
+        const user = await User.create({ name, firstName, lastName, username, phone, email, password, role, permissions: permissions || [] });
         return user.toObject();
     },
     async findByEmail(email) {
@@ -32,11 +32,11 @@ const mongoRepo = {
 };
 
 const pgRepo = {
-    async create({ name, email, password, role }) {
+    async create({ name, firstName, lastName, username, phone, email, password, role, permissions }) {
         const pool = await connectPG();
         const res = await pool.query(
-            'INSERT INTO users(name, email, password, role) VALUES($1,$2,$3,$4) RETURNING id, name, email, role, created_at, updated_at',
-            [name, email, password, role]
+            'INSERT INTO users(name, first_name, last_name, username, phone, email, password, role, permissions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, name, first_name, last_name, username, phone, email, role, permissions, created_at, updated_at',
+            [name, firstName, lastName, username, phone || null, email, password, role, permissions || []]
         );
         return res.rows[0];
     },
@@ -47,7 +47,7 @@ const pgRepo = {
     },
     async findById(id) {
         const pool = await connectPG();
-        const res = await pool.query('SELECT id, name, email, role, created_at, updated_at FROM users WHERE id=$1', [id]);
+        const res = await pool.query('SELECT id, name, first_name, last_name, username, phone, email, role, permissions, created_at, updated_at FROM users WHERE id=$1', [id]);
         return res.rows[0] || null;
     },
     async updateById(id, updates) {
@@ -70,7 +70,7 @@ const pgRepo = {
     },
     async list() {
         const pool = await connectPG();
-        const res = await pool.query('SELECT id, name, email, role, created_at, updated_at FROM users ORDER BY created_at DESC');
+        const res = await pool.query('SELECT id, name, first_name, last_name, username, phone, email, role, permissions, created_at, updated_at FROM users ORDER BY created_at DESC');
         return res.rows;
     }
 };
