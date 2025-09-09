@@ -29,6 +29,9 @@ app.use(cors({
     credentials: true
 }));
 
+// Frontend de test servi statiquement sous /test
+app.use('/test', express.static(require('path').join(__dirname, 'test-frontend')));
+
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -143,6 +146,13 @@ app.post(
 
 // Routes utilisateurs (admin only pour listing/modif/suppression)
 app.use(`${apiBase}/users`, usersRouter);
+
+// Catch-all: bloquer l'accès aux routes hors /api/* et /test (et garder /)
+app.use((req, res, next) => {
+    const path = req.path || '';
+    if (path === '/' || path.startsWith('/api/') || path.startsWith('/test')) return next();
+    return res.status(404).json({ message: 'Route introuvable. Utilisez /api/v1', code: 'NOT_FOUND' });
+});
 
 // Middleware d'erreurs
 app.use(errorHandler);

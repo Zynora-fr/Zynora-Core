@@ -35,7 +35,7 @@ class AuthService {
 
         const accessToken = jwt.sign(
             {
-                id: user.id,
+                id: user.id || user._id,
                 email: user.email,
                 role: user.role,
                 name: user.name,
@@ -68,7 +68,7 @@ class AuthService {
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('Configuration JWT manquante');
 
-        const accessToken = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '15m' });
+        const accessToken = jwt.sign({ id: user.id || user._id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '15m' });
 
         // Rotation: révoquer l'ancien et émettre un nouveau refresh token
         const newPlain = crypto.randomBytes(48).toString('hex');
