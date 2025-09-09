@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const logger = require('../utils/logger');
 
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers.authorization || '';
@@ -15,14 +16,17 @@ const authenticateToken = async (req, res, next) => {
         const decoded = jwt.verify(token, secret);
         req.user = await User.findById(decoded.id).select('-password');
         if (!req.user) return res.status(401).json({ message: 'Utilisateur introuvable' });
+        logger.info('AUTH_OK', { uid: String(req.user._id || req.user.id), path: req.originalUrl });
         next();
     } catch (err) {
+        logger.warn('AUTH_FAIL', { reason: err.message, path: req.originalUrl });
         return res.status(401).json({ message: 'Token invalide' });
     }
 };
 
 const authorizeRoles = (...allowedRoles) => (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
+        logger.warn('ROLE_DENY', { uid: req.user && String(req.user._id || req.user.id), roles: allowedRoles, path: req.originalUrl });
         return res.status(403).json({ message: 'Accès refusé' });
     }
     next();

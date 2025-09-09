@@ -10,7 +10,10 @@ const usersRouter = require('./src/routes/users');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
+const logger = require('./src/utils/logger');
 const rateLimit = require('express-rate-limit');
+const slowDown = require('express-slow-down');
+const { requestId, logRequests, mongoSanitize, hpp } = require('./src/middleware/securityMiddleware');
 const { body, validationResult } = require('express-validator');
 const errorHandler = require('./src/middleware/errorMiddleware');
 const User = require('./src/models/User');
@@ -18,13 +21,24 @@ const RefreshToken = require('./src/models/RefreshToken');
 const { connectPG } = require('./src/config/pg');
 const { authorizePermissions } = require('./src/middleware/permissionsMiddleware');
 const permRepo = require('./src/repositories/permissionRepository');
+const crypto = require('crypto');
+const { runUpdate } = require('./src/utils/updater');
+const { startReleasePoller } = require('./src/utils/releasePoller');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(requestId);
+app.use(logRequests);
 app.use(express.json({ limit: '1mb' }));
+app.use(hpp());
+app.use(mongoSanitize());
 app.use(helmet());
-app.use(morgan('combined'));
+app.use(morgan('combined', {
+    stream: {
+        write: (message) => logger.info('HTTP', { message: message.trim() })
+    }
+}));
 app.use(cors({
     origin: (origin, cb) => {
         const allowed = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -50,6 +64,14 @@ const generalLimiter = rateLimit({
     max: 300,
 });
 app.use(generalLimiter);
+
+// Anti-DDoS: ralentissement progressif
+const speedLimiter = slowDown({
+    windowMs: 60 * 1000,
+    delayAfter: 100,
+    delayMs: 250
+});
+app.use(speedLimiter);
 
 // Blocage basique de bots connus via User-Agent
 app.use((req, res, next) => {
@@ -87,6 +109,35 @@ app.get('/robots.txt', (req, res) => {
 
 // Base path API
 const apiBase = '/api/v1';
+// Webhook GitHub pour mise à jour automatique
+app.post(`${apiBase}/admin/webhook/github`, express.raw({ type: '*/*' }), (req, res) => {
+    try {
+        const secret = process.env.GITHUB_WEBHOOK_SECRET;
+        if (!secret) return res.status(500).json({ message: 'Secret webhook manquant' });
+        const sig = req.headers['x-hub-signature-256'];
+        const hmac = crypto.createHmac('sha256', secret);
+        const digest = 'sha256=' + hmac.update(req.body).digest('hex');
+        if (!sig || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(digest))) {
+            return res.status(401).json({ message: 'Signature invalide' });
+        }
+        // Détecter release
+        let tag = undefined;
+        try {
+            const body = JSON.parse(req.body.toString('utf8'));
+            if (body.action === 'published' && body.release && body.release.tag_name) {
+                tag = body.release.tag_name;
+            }
+        } catch {}
+        res.json({ ok: true, tag });
+        // lancer en arrière-plan sur tag si présent
+        runUpdate(tag).catch(err => {
+            const logger = require('./src/utils/logger');
+            logger.error('UPDATE_FAILED', { message: err.message });
+        });
+    } catch (e) {
+        return res.status(400).json({ message: 'Erreur webhook' });
+    }
+});
 
 // Auth
 app.post(
@@ -293,13 +344,20 @@ app.use((req, res, next) => {
 });
 
 // Middleware d'erreurs
-app.use(errorHandler);
+app.use((err, req, res, next) => {
+    const logger = require('./src/utils/logger');
+    logger.error('UNCAUGHT_API_ERROR', { err: { message: err.message, stack: err.stack }, path: req && req.originalUrl });
+    errorHandler(err, req, res, next);
+});
 
 // Export pour les tests, démarrage si fichier principal
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Serveur lancé sur http://localhost:${PORT}`);
     });
+    if (String(process.env.RELEASE_POLL_ENABLED || 'true').toLowerCase() === 'true') {
+        startReleasePoller();
+    }
 }
 
 module.exports = app;
