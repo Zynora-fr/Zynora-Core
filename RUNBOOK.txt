@@ -1,0 +1,76 @@
+# Devosphere-Core - Guide de démarrage (commandes)
+
+1) Prérequis
+- Node.js 18+ (recommandé 20)
+- npm 9+
+- Docker + Docker Compose (optionnel, pour exécuter Mongo/Postgres facilement)
+
+2) Clonage du projet
+- (si nécessaire)
+  git clone https://github.com/Devosphere-fr/Devosphere-Core.git
+  cd Devosphere-Core
+
+3) Fichier d'environnement (.env)
+- Copier le contenu de .env.example vers .env et ajuster les valeurs:
+  - DB_DRIVER=mongo (ou postgres)
+  - MONGO_URI=mongodb://localhost:27017/devosphere-core
+  - PG_URI=postgres://postgres:postgres@localhost:5432/devosphere
+  - JWT_SECRET=une_chaine_secrete_solide
+  - REFRESH_TTL_DAYS=7
+  - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+
+4) Installation des dépendances
+- npm install
+
+5) Démarrage en développement (Hot reload via nodemon)
+- npm run dev
+
+6) Démarrage en production (local)
+- npm start
+
+7) Lancer avec Docker (API + MongoDB + PostgreSQL)
+- (définir au préalable dans l'environnement hôte des variables comme JWT_SECRET et CORS_ORIGINS si nécessaire)
+- docker compose up --build
+
+  Notes:
+  - Accès API: http://localhost:3000
+  - MongoDB: mongodb://localhost:27017 (container: mongo)
+  - PostgreSQL: postgres://postgres:postgres@localhost:5432/devosphere (container: postgres)
+  - Pour choisir le driver DB, définir DB_DRIVER=mongo ou DB_DRIVER=postgres (déjà configuré dans docker-compose.yml avec défaut mongo)
+
+8) Basculer entre Mongo et Postgres
+- Dans .env (local):
+  - DB_DRIVER=mongo
+  - ou
+  - DB_DRIVER=postgres
+- En Docker: adapter la variable d'environnement DB_DRIVER (dans docker-compose.yml ou via `-e DB_DRIVER=postgres`).
+- L'initialisation des tables Postgres est automatique au démarrage si DB_DRIVER=postgres.
+
+9) Tests (Jest + Supertest)
+- (Assurez-vous que la base cible dans .env est accessible; pour les tests d'intégration simples Mongo local convient.)
+- npm test
+
+10) Endpoints principaux (API v1)
+- POST   /api/v1/auth/register
+- POST   /api/v1/auth/login
+- POST   /api/v1/auth/refresh
+- POST   /api/v1/auth/logout
+- GET    /api/v1/profile           (Bearer)
+- GET    /api/v1/admin             (Bearer + rôle admin)
+- GET    /api/v1/users             (Bearer + rôle admin)
+- GET    /api/v1/users/:id         (Bearer + rôle admin)
+- PUT    /api/v1/users/:id         (Bearer + rôle admin|manager)
+- DELETE /api/v1/users/:id         (Bearer + rôle admin)
+
+11) Exemples rapides (PowerShell)
+- Inscription:
+  curl -Method POST -Uri http://localhost:3000/api/v1/auth/register -ContentType 'application/json' -Body '{"name":"Admin","email":"admin@test.com","password":"Aa!23456","role":"admin"}'
+- Connexion:
+  curl -Method POST -Uri http://localhost:3000/api/v1/auth/login -ContentType 'application/json' -Body '{"email":"admin@test.com","password":"Aa!23456"}'
+- Profil (remplacer <TOKEN>):
+  curl -Method GET -Uri http://localhost:3000/api/v1/profile -Headers @{Authorization="Bearer <TOKEN>"}
+
+12) Dépannage
+- Variable JWT_SECRET manquante → définir dans .env (ou environnement Docker)
+- CORS bloqué → vérifier CORS_ORIGINS (domaines autorisés)
+- Erreurs Mongo/PG → vérifier MONGO_URI/PG_URI et que les services DB sont démarrés
