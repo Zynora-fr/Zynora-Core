@@ -1,8 +1,8 @@
-# Devosphere-Core
+# Zynora-Core
 
-**Devosphere-Core** est le **noyau central sécurisé** pour tous les projets Devosphere. Il fournit une base solide pour la création d’API sécurisées, la gestion des utilisateurs et rôles, ainsi que l’intégration facile dans d’autres projets.
+**Zynora-Core** est le **noyau central sécurisé** pour tous les projets Zynora. Il fournit une base solide pour la création d’API sécurisées, la gestion des utilisateurs et rôles, ainsi que l’intégration facile dans d’autres projets.
 
-> ⚠️ Open-source pour usage personnel, éducatif ou interne uniquement. **L’utilisation commerciale est interdite sans accord préalable avec Devosphere.**
+> ⚠️ Open-source pour usage personnel, éducatif ou interne uniquement. **L’utilisation commerciale est interdite sans accord préalable avec Zynora.**
 
 ---
 
